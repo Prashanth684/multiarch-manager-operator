@@ -136,7 +136,7 @@ func defaultNodeAffinityScoring() *plugins.NodeAffinityScoring {
 // read-only credentials of the quay.io org. for testing images stored
 // in a repo for which credentials are expected to stay in the global pull secret.
 // NOTE: TODO: do we need to change the location of the secrets even here for testing non-OCP distributions?
-func updateGlobalPullSecret() {
+func updateGlobalPullSecret(isdelete ...bool) {
 	secret := corev1.Secret{}
 	err := client.Get(ctx, runtimeclient.ObjectKeyFromObject(&corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
@@ -151,11 +151,16 @@ func updateGlobalPullSecret() {
 	auths := dockerConfigJSON["auths"].(map[string]interface{})
 	// Add new auth for quay.io/multi-arch/tuning-test-global to global pull secret
 	registry := "quay.io/multi-arch/tuning-test-global"
-	auth := map[string]string{
-		"auth": base64.StdEncoding.EncodeToString([]byte(fmt.Sprintf("%s:%s",
-			"multi-arch+mto_testing_global_ps", "NELK81COHVFAZHY49MXK9XJ02U7A85V0HY3NS14O4K2AFRN3EY39SH64MFU3U90W"))),
+	if len(isdelete) > 0 && isdelete[0] {
+		// Delete the auth for quay.io/multi-arch/tuning-test-global from global pull secret
+		delete(auths, registry)
+	} else {
+		auth := map[string]string{
+			"auth": base64.StdEncoding.EncodeToString([]byte(fmt.Sprintf("%s:%s",
+				"multi-arch+mto_testing_global_ps", "NELK81COHVFAZHY49MXK9XJ02U7A85V0HY3NS14O4K2AFRN3EY39SH64MFU3U90W"))),
+		}
+		auths[registry] = auth
 	}
-	auths[registry] = auth
 	dockerConfigJSON["auths"] = auths
 	newDockerConfigJSONBytes, err := json.Marshal(dockerConfigJSON)
 	Expect(err).NotTo(HaveOccurred(), "failed to marshal dockerconfigjson", err)
